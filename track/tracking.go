@@ -14,9 +14,9 @@
 
 package track
 
-// ReaderWriter represents a type that is capable
+// ByteTracker represents a type that is capable
 // of tracking bytes read and written over a period of time
-type ReaderWriter interface {
+type ByteTracker interface {
 	BytesRead() uint64
 	BytesWritten() uint64
 	BytesReadWritten() BytesSummary

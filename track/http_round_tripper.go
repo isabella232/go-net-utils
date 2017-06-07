@@ -23,7 +23,7 @@ import (
 // HTTPRoundTripper wraps an http.RoundTripper and tracks reads and writes
 type HTTPRoundTripper interface {
 	http.RoundTripper
-	ReaderWriter
+	ByteTracker
 }
 
 type basicHTTPHTTPRoundTripper struct {

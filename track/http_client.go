@@ -19,7 +19,7 @@ import "net/http"
 // HTTPClient wraps an http.Client and tracks reads and writes
 type HTTPClient struct {
 	*http.Client
-	ReaderWriter
+	ByteTracker
 }
 
 // NewDefaultHTTPClient returns a new HTTPClient based on a default
@@ -29,7 +29,7 @@ func NewDefaultHTTPClient() HTTPClient {
 	rt := NewDefaultHTTPRoundTripper()
 	client.Transport = NewDefaultHTTPRoundTripper()
 	return HTTPClient{
-		Client:       &client,
-		ReaderWriter: rt,
+		Client:      &client,
+		ByteTracker: rt,
 	}
 }

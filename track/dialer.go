@@ -24,7 +24,7 @@ import (
 
 // Dialer represents a net.Dialer that can track bytes read/written
 type Dialer interface {
-	ReaderWriter
+	ByteTracker
 
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)

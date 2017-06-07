@@ -22,7 +22,7 @@ import (
 // Conn wraps a net.Conn and tracks reads and writes
 type Conn interface {
 	net.Conn
-	ReaderWriter
+	ByteTracker
 }
 
 // NewConn returns a new Conn based off of a net.Conn
