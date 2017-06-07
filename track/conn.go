@@ -25,6 +25,11 @@ type Conn interface {
 	ReaderWriter
 }
 
+// NewConn returns a new Conn based off of a net.Conn
+func NewConn(conn net.Conn) Conn {
+	return &basicConn{Conn: conn}
+}
+
 type basicConn struct {
 	net.Conn
 	OnClose      func()
