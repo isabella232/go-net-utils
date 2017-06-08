@@ -20,6 +20,7 @@ type ByteTracker interface {
 	BytesRead() uint64
 	BytesWritten() uint64
 	BytesReadWritten() BytesSummary
+	BytesReset()
 }
 
 // BytesSummary packages bytes read and written

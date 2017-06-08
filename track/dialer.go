@@ -151,6 +151,17 @@ func (dialer *basicDialer) BytesReadWritten() BytesSummary {
 	return BytesSummary{Read: totalRead, Written: totalWritten}
 }
 
+func (dialer *basicDialer) BytesReset() {
+	dialer.connsMut.Lock()
+	for _, conn := range dialer.conns {
+		conn.BytesReset()
+	}
+	dialer.connsMut.Unlock()
+
+	atomic.StoreUint64(&dialer.bytesRead, 0)
+	atomic.StoreUint64(&dialer.bytesWritten, 0)
+}
+
 func (dialer *basicDialer) Timeout() time.Duration {
 	return dialer.Dialer.Timeout
 }

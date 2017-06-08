@@ -62,5 +62,9 @@ func TestConnReadWriteTracking(t *testing.T) {
 		summary := tConn.BytesReadWritten()
 		gc.So(summary.Read, gc.ShouldEqual, 14)
 		gc.So(summary.Written, gc.ShouldEqual, 29)
+
+		tConn.BytesReset()
+		gc.So(tConn.BytesRead(), gc.ShouldEqual, 0)
+		gc.So(tConn.BytesWritten(), gc.ShouldEqual, 0)
 	})
 }

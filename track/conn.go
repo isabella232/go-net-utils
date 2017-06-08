@@ -74,3 +74,8 @@ func (conn *basicConn) BytesReadWritten() BytesSummary {
 		Written: conn.BytesWritten(),
 	}
 }
+
+func (conn *basicConn) BytesReset() {
+	atomic.StoreUint64(&conn.bytesRead, 0)
+	atomic.StoreUint64(&conn.bytesWritten, 0)
+}
