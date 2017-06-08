@@ -55,6 +55,10 @@ type basicDialer struct {
 	connsMut     sync.RWMutex
 	bytesRead    uint64
 	bytesWritten uint64
+
+	// flushMut is for crticial sections that can
+	// affect totals
+	flushMut sync.RWMutex
 }
 
 // NewDefaultDialer returns a Dialer based on
@@ -104,6 +108,9 @@ func (dialer *basicDialer) DialContext(ctx context.Context, network, address str
 
 func (dialer *basicDialer) makeOnConnClose(connNum uint64) func() {
 	return func() {
+		dialer.flushMut.Lock()
+		defer dialer.flushMut.Unlock()
+
 		dialer.connsMut.Lock()
 
 		// Ensure connection exists for duration of this
@@ -136,6 +143,9 @@ func (dialer *basicDialer) BytesWritten() uint64 {
 }
 
 func (dialer *basicDialer) BytesReadWritten() BytesSummary {
+	dialer.flushMut.RLock()
+	defer dialer.flushMut.RUnlock()
+
 	var totalRead, totalWritten uint64
 
 	dialer.connsMut.RLock()
@@ -152,6 +162,9 @@ func (dialer *basicDialer) BytesReadWritten() BytesSummary {
 }
 
 func (dialer *basicDialer) ResetBytes() {
+	dialer.flushMut.Lock()
+	defer dialer.flushMut.Unlock()
+
 	dialer.connsMut.Lock()
 	for _, conn := range dialer.conns {
 		conn.ResetBytes()

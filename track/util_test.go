@@ -19,7 +19,7 @@ import (
 	"testing"
 )
 
-//	newTestHalfListener will write back half of the bytes it reads
+// newTestHalfListener will write back half of the bytes it reads
 func newTestHalfListener(t *testing.T) net.Listener {
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
