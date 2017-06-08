@@ -125,7 +125,7 @@ func TestDialerContextReadWriteTracking(t *testing.T) {
 			gc.So(summary.Written, gc.ShouldEqual, knownWritten)
 		}
 
-		dialer.BytesReset()
+		dialer.ResetBytes()
 		gc.So(dialer.BytesRead(), gc.ShouldEqual, 0)
 		gc.So(dialer.BytesWritten(), gc.ShouldEqual, 0)
 	})

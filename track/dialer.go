@@ -151,10 +151,10 @@ func (dialer *basicDialer) BytesReadWritten() BytesSummary {
 	return BytesSummary{Read: totalRead, Written: totalWritten}
 }
 
-func (dialer *basicDialer) BytesReset() {
+func (dialer *basicDialer) ResetBytes() {
 	dialer.connsMut.Lock()
 	for _, conn := range dialer.conns {
-		conn.BytesReset()
+		conn.ResetBytes()
 	}
 	dialer.connsMut.Unlock()
 
