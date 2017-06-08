@@ -27,7 +27,7 @@ type HTTPClient struct {
 func NewDefaultHTTPClient() HTTPClient {
 	client := http.Client{}
 	rt := NewDefaultHTTPRoundTripper()
-	client.Transport = NewDefaultHTTPRoundTripper()
+	client.Transport = rt
 	return HTTPClient{
 		Client:      &client,
 		ByteTracker: rt,
