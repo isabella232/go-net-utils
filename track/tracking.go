@@ -19,12 +19,6 @@ package track
 type ByteTracker interface {
 	BytesRead() uint64
 	BytesWritten() uint64
-	BytesReadWritten() BytesSummary
+	BytesReadWritten() (read uint64, written uint64)
 	ResetBytes()
-}
-
-// BytesSummary packages bytes read and written
-type BytesSummary struct {
-	Read    uint64
-	Written uint64
 }

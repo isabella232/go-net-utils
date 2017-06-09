@@ -124,9 +124,9 @@ func (dialer *basicDialer) makeOnConnClose(connNum uint64) func() {
 		delete(dialer.conns, connNum)
 		dialer.connsMut.Unlock()
 
-		summary := conn.BytesReadWritten()
-		atomic.AddUint64(&dialer.bytesRead, summary.Read)
-		atomic.AddUint64(&dialer.bytesWritten, summary.Written)
+		read, written := conn.BytesReadWritten()
+		atomic.AddUint64(&dialer.bytesRead, read)
+		atomic.AddUint64(&dialer.bytesWritten, written)
 	}
 }
 
@@ -135,14 +135,16 @@ func (dialer *basicDialer) nextConnNum() uint64 {
 }
 
 func (dialer *basicDialer) BytesRead() uint64 {
-	return dialer.BytesReadWritten().Read
+	read, _ := dialer.BytesReadWritten()
+	return read
 }
 
 func (dialer *basicDialer) BytesWritten() uint64 {
-	return dialer.BytesReadWritten().Written
+	_, written := dialer.BytesReadWritten()
+	return written
 }
 
-func (dialer *basicDialer) BytesReadWritten() BytesSummary {
+func (dialer *basicDialer) BytesReadWritten() (uint64, uint64) {
 	dialer.flushMut.RLock()
 	defer dialer.flushMut.RUnlock()
 
@@ -158,7 +160,7 @@ func (dialer *basicDialer) BytesReadWritten() BytesSummary {
 	totalRead += atomic.LoadUint64(&dialer.bytesRead)
 	totalWritten += atomic.LoadUint64(&dialer.bytesWritten)
 
-	return BytesSummary{Read: totalRead, Written: totalWritten}
+	return totalRead, totalWritten
 }
 
 func (dialer *basicDialer) ResetBytes() {

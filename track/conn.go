@@ -68,11 +68,8 @@ func (conn *basicConn) BytesWritten() uint64 {
 	return atomic.LoadUint64(&conn.bytesWritten)
 }
 
-func (conn *basicConn) BytesReadWritten() BytesSummary {
-	return BytesSummary{
-		Read:    conn.BytesRead(),
-		Written: conn.BytesWritten(),
-	}
+func (conn *basicConn) BytesReadWritten() (uint64, uint64) {
+	return conn.BytesRead(), conn.BytesWritten()
 }
 
 func (conn *basicConn) ResetBytes() {

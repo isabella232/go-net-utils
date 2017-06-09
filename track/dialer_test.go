@@ -67,9 +67,9 @@ func TestDialerReadWriteTracking(t *testing.T) {
 
 			conn.Close()
 
-			summary := dialer.BytesReadWritten()
-			gc.So(summary.Read, gc.ShouldEqual, knownRead)
-			gc.So(summary.Written, gc.ShouldEqual, knownWritten)
+			read, written := dialer.BytesReadWritten()
+			gc.So(read, gc.ShouldEqual, knownRead)
+			gc.So(written, gc.ShouldEqual, knownWritten)
 		}
 	})
 }
@@ -120,9 +120,9 @@ func TestDialerContextReadWriteTracking(t *testing.T) {
 
 			conn.Close()
 
-			summary := dialer.BytesReadWritten()
-			gc.So(summary.Read, gc.ShouldEqual, knownRead)
-			gc.So(summary.Written, gc.ShouldEqual, knownWritten)
+			read, written := dialer.BytesReadWritten()
+			gc.So(read, gc.ShouldEqual, knownRead)
+			gc.So(written, gc.ShouldEqual, knownWritten)
 		}
 
 		dialer.ResetBytes()
