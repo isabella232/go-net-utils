@@ -49,14 +49,15 @@ type Dialer interface {
 }
 
 type basicDialer struct {
-	*net.Dialer
-	connCounter  uint64
-	conns        map[uint64]Conn
-	connsMut     sync.RWMutex
 	bytesRead    uint64
 	bytesWritten uint64
+	connCounter  uint64
 
-	// flushMut is for crticial sections that can
+	*net.Dialer
+	conns    map[uint64]Conn
+	connsMut sync.RWMutex
+
+	// flushMut is for critical sections that can
 	// affect totals
 	flushMut sync.RWMutex
 }

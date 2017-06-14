@@ -31,10 +31,10 @@ func NewConn(conn net.Conn) Conn {
 }
 
 type basicConn struct {
-	net.Conn
-	OnClose      func()
 	bytesRead    uint64
 	bytesWritten uint64
+	net.Conn
+	OnClose func()
 }
 
 func (conn *basicConn) Read(b []byte) (n int, err error) {
