@@ -67,8 +67,8 @@ type basicDialer struct {
 func NewDefaultDialer() Dialer {
 	return &basicDialer{
 		Dialer: &net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:   5 * time.Second,
+			KeepAlive: 5 * time.Second,
 			DualStack: true,
 		},
 	}
@@ -89,7 +89,8 @@ func (dialer *basicDialer) Dial(network, address string) (net.Conn, error) {
 		return nil, err
 	}
 	connNum := dialer.nextConnNum()
-	tConn := &basicConn{Conn: conn, OnClose: dialer.makeOnConnClose(connNum)}
+	tConn := newConn(conn)
+	tConn.OnClose = dialer.makeOnConnClose(connNum)
 	dialer.addConn(tConn, connNum)
 
 	return tConn, nil
@@ -101,7 +102,8 @@ func (dialer *basicDialer) DialContext(ctx context.Context, network, address str
 		return nil, err
 	}
 	connNum := dialer.nextConnNum()
-	tConn := &basicConn{Conn: conn, OnClose: dialer.makeOnConnClose(connNum)}
+	tConn := newConn(conn)
+	tConn.OnClose = dialer.makeOnConnClose(connNum)
 	dialer.addConn(tConn, connNum)
 
 	return tConn, nil

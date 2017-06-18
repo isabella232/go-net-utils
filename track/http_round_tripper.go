@@ -24,10 +24,11 @@ import (
 type HTTPRoundTripper interface {
 	http.RoundTripper
 	ByteTracker
+	CloseIdleConnections()
 }
 
 type basicHTTPHTTPRoundTripper struct {
-	http.RoundTripper
+	*http.Transport
 	Dialer
 }
 
@@ -43,8 +44,8 @@ func NewHTTPRoundTripper(
 	innerTransport.DialContext = dialer.DialContext
 
 	return &basicHTTPHTTPRoundTripper{
-		RoundTripper: innerTransport,
-		Dialer:       dialer,
+		Transport: innerTransport,
+		Dialer:    dialer,
 	}
 }
 
@@ -52,8 +53,7 @@ func NewHTTPRoundTripper(
 // on a default net.Dialer and http.Transport
 func NewDefaultHTTPRoundTripper() HTTPRoundTripper {
 	dialer := &net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
+		Timeout:   5 * time.Second,
 		DualStack: true,
 	}
 	innerTransport := &http.Transport{

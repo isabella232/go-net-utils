@@ -16,7 +16,9 @@ package track
 
 import (
 	"net"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Conn wraps a net.Conn and tracks reads and writes
@@ -25,39 +27,56 @@ type Conn interface {
 	ByteTracker
 }
 
+// newConn returns a new Conn based off of a net.Conn
+func newConn(conn net.Conn) *basicConn {
+	// Must set a deadline otherwise we risk
+	// waiting forever on observation
+	conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+	conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+	return &basicConn{Conn: conn}
+}
+
 // NewConn returns a new Conn based off of a net.Conn
 func NewConn(conn net.Conn) Conn {
-	return &basicConn{Conn: conn}
+	return newConn(conn)
 }
 
 type basicConn struct {
 	bytesRead    uint64
 	bytesWritten uint64
 	net.Conn
-	OnClose func()
+	OnClose   func()
+	activeOps sync.WaitGroup
 }
 
 func (conn *basicConn) Read(b []byte) (n int, err error) {
+	conn.activeOps.Add(1)
 	n, err = conn.Conn.Read(b)
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesRead, uint64(n))
 	}
+	conn.activeOps.Done()
+	conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 	return n, err
 }
 
 func (conn *basicConn) Write(b []byte) (n int, err error) {
+	conn.activeOps.Add(1)
 	n, err = conn.Conn.Write(b)
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesWritten, uint64(n))
 	}
+	conn.activeOps.Done()
+	conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
 	return n, err
 }
 
 func (conn *basicConn) Close() error {
+	err := conn.Conn.Close()
 	if conn.OnClose != nil {
 		conn.OnClose()
 	}
-	return conn.Conn.Close()
+	return err
 }
 
 func (conn *basicConn) BytesRead() uint64 {
@@ -69,6 +88,7 @@ func (conn *basicConn) BytesWritten() uint64 {
 }
 
 func (conn *basicConn) BytesReadWritten() (uint64, uint64) {
+	conn.activeOps.Wait()
 	return conn.BytesRead(), conn.BytesWritten()
 }
 
