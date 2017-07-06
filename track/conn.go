@@ -80,16 +80,18 @@ func (conn *basicConn) Close() error {
 }
 
 func (conn *basicConn) BytesRead() uint64 {
+	conn.activeOps.Wait()
 	return atomic.LoadUint64(&conn.bytesRead)
 }
 
 func (conn *basicConn) BytesWritten() uint64 {
+	conn.activeOps.Wait()
 	return atomic.LoadUint64(&conn.bytesWritten)
 }
 
 func (conn *basicConn) BytesReadWritten() (uint64, uint64) {
 	conn.activeOps.Wait()
-	return conn.BytesRead(), conn.BytesWritten()
+	return atomic.LoadUint64(&conn.bytesRead), atomic.LoadUint64(&conn.bytesWritten)
 }
 
 func (conn *basicConn) ResetBytes() {

@@ -155,8 +155,9 @@ func (dialer *basicDialer) BytesReadWritten() (uint64, uint64) {
 
 	dialer.connsMut.RLock()
 	for _, conn := range dialer.conns {
-		totalRead += conn.BytesRead()
-		totalWritten += conn.BytesWritten()
+		read, written := conn.BytesReadWritten()
+		totalRead += read
+		totalWritten += written
 	}
 	dialer.connsMut.RUnlock()
 
