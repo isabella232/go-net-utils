@@ -45,12 +45,24 @@ type basicConn struct {
 	bytesRead    uint64
 	bytesWritten uint64
 	net.Conn
-	OnClose   func()
+	OnClose func()
+
 	activeOps sync.WaitGroup
+
+	// activeOpsMu handles the racy cases where
+	// a caller waits on activeOps and another
+	// caller in another goroutine adds to
+	// the WaitGroup. This is not an allowed behavior
+	// of WaitGroup and must be synchronized every time
+	// activeOps' state counter goes back to 0.
+	activeOpsMu sync.RWMutex
 }
 
 func (conn *basicConn) Read(b []byte) (n int, err error) {
+	conn.activeOpsMu.RLock()
 	conn.activeOps.Add(1)
+	conn.activeOpsMu.RUnlock()
+
 	n, err = conn.Conn.Read(b)
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesRead, uint64(n))
@@ -61,7 +73,10 @@ func (conn *basicConn) Read(b []byte) (n int, err error) {
 }
 
 func (conn *basicConn) Write(b []byte) (n int, err error) {
+	conn.activeOpsMu.RLock()
 	conn.activeOps.Add(1)
+	conn.activeOpsMu.RUnlock()
+
 	n, err = conn.Conn.Write(b)
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesWritten, uint64(n))
@@ -79,18 +94,11 @@ func (conn *basicConn) Close() error {
 	return err
 }
 
-func (conn *basicConn) BytesRead() uint64 {
-	conn.activeOps.Wait()
-	return atomic.LoadUint64(&conn.bytesRead)
-}
-
-func (conn *basicConn) BytesWritten() uint64 {
-	conn.activeOps.Wait()
-	return atomic.LoadUint64(&conn.bytesWritten)
-}
-
 func (conn *basicConn) BytesReadWritten() (uint64, uint64) {
+	conn.activeOpsMu.Lock()
 	conn.activeOps.Wait()
+	conn.activeOpsMu.Unlock()
+
 	return atomic.LoadUint64(&conn.bytesRead), atomic.LoadUint64(&conn.bytesWritten)
 }
 

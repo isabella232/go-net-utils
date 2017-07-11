@@ -31,8 +31,9 @@ func TestConnReadWriteTracking(t *testing.T) {
 		gc.So(conn, gc.ShouldNotBeNil)
 
 		tConn := NewConn(conn)
-		gc.So(tConn.BytesRead(), gc.ShouldEqual, 0)
-		gc.So(tConn.BytesWritten(), gc.ShouldEqual, 0)
+		bytesRead, bytesWritten := tConn.BytesReadWritten()
+		gc.So(bytesRead, gc.ShouldEqual, 0)
+		gc.So(bytesWritten, gc.ShouldEqual, 0)
 
 		payload := []byte("hey look I've got some bytes!")
 
@@ -45,8 +46,10 @@ func TestConnReadWriteTracking(t *testing.T) {
 			written, err := tConn.Write(payload[i : i+toWrite])
 			gc.So(err, gc.ShouldBeNil)
 			gc.So(written, gc.ShouldEqual, toWrite)
-			gc.So(tConn.BytesRead(), gc.ShouldEqual, i/2)
-			gc.So(tConn.BytesWritten(), gc.ShouldEqual, i+toWrite)
+
+			bytesRead, bytesWritten := tConn.BytesReadWritten()
+			gc.So(bytesRead, gc.ShouldEqual, i/2)
+			gc.So(bytesWritten, gc.ShouldEqual, i+toWrite)
 
 			if toWrite/2 == 0 {
 				continue
@@ -55,6 +58,11 @@ func TestConnReadWriteTracking(t *testing.T) {
 			read, err := tConn.Read(buff)
 			gc.So(err, gc.ShouldBeNil)
 			gc.So(read, gc.ShouldEqual, toWrite/2)
+
+			go func() {
+				// Sentinel for race conditions
+				tConn.BytesReadWritten()
+			}()
 		}
 
 		tConn.Close()
@@ -64,7 +72,8 @@ func TestConnReadWriteTracking(t *testing.T) {
 		gc.So(written, gc.ShouldEqual, 29)
 
 		tConn.ResetBytes()
-		gc.So(tConn.BytesRead(), gc.ShouldEqual, 0)
-		gc.So(tConn.BytesWritten(), gc.ShouldEqual, 0)
+		bytesRead, bytesWritten = tConn.BytesReadWritten()
+		gc.So(bytesRead, gc.ShouldEqual, 0)
+		gc.So(bytesWritten, gc.ShouldEqual, 0)
 	})
 }

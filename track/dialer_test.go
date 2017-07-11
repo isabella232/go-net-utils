@@ -52,8 +52,10 @@ func TestDialerReadWriteTracking(t *testing.T) {
 				gc.So(err, gc.ShouldBeNil)
 				gc.So(written, gc.ShouldEqual, toWrite)
 				knownWritten += written
-				gc.So(dialer.BytesRead(), gc.ShouldEqual, knownRead)
-				gc.So(dialer.BytesWritten(), gc.ShouldEqual, knownWritten)
+
+				bytesRead, bytesWritten := dialer.BytesReadWritten()
+				gc.So(bytesRead, gc.ShouldEqual, knownRead)
+				gc.So(bytesWritten, gc.ShouldEqual, knownWritten)
 
 				if toWrite/2 == 0 {
 					continue
@@ -105,8 +107,10 @@ func TestDialerContextReadWriteTracking(t *testing.T) {
 				gc.So(err, gc.ShouldBeNil)
 				gc.So(written, gc.ShouldEqual, toWrite)
 				knownWritten += written
-				gc.So(dialer.BytesRead(), gc.ShouldEqual, knownRead)
-				gc.So(dialer.BytesWritten(), gc.ShouldEqual, knownWritten)
+
+				bytesRead, bytesWritten := dialer.BytesReadWritten()
+				gc.So(bytesRead, gc.ShouldEqual, knownRead)
+				gc.So(bytesWritten, gc.ShouldEqual, knownWritten)
 
 				if toWrite/2 == 0 {
 					continue
@@ -126,7 +130,9 @@ func TestDialerContextReadWriteTracking(t *testing.T) {
 		}
 
 		dialer.ResetBytes()
-		gc.So(dialer.BytesRead(), gc.ShouldEqual, 0)
-		gc.So(dialer.BytesWritten(), gc.ShouldEqual, 0)
+
+		bytesRead, bytesWritten := dialer.BytesReadWritten()
+		gc.So(bytesRead, gc.ShouldEqual, 0)
+		gc.So(bytesWritten, gc.ShouldEqual, 0)
 	})
 }

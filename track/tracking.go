@@ -17,8 +17,6 @@ package track
 // ByteTracker represents a type that is capable
 // of tracking bytes read and written over a period of time
 type ByteTracker interface {
-	BytesRead() uint64
-	BytesWritten() uint64
 	BytesReadWritten() (read uint64, written uint64)
 	ResetBytes()
 }
