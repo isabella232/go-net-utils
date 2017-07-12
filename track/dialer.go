@@ -60,6 +60,8 @@ type basicDialer struct {
 	// flushMut is for critical sections that can
 	// affect totals
 	flushMut sync.RWMutex
+
+	stgsMut sync.Mutex
 }
 
 // NewDefaultDialer returns a Dialer based on
@@ -182,57 +184,85 @@ func (dialer *basicDialer) ResetBytes() {
 }
 
 func (dialer *basicDialer) Timeout() time.Duration {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	return dialer.Dialer.Timeout
 }
 
 func (dialer *basicDialer) Deadline() time.Time {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	return dialer.Dialer.Deadline
 }
 
 func (dialer *basicDialer) LocalAddr() net.Addr {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	return dialer.Dialer.LocalAddr
 }
 
 func (dialer *basicDialer) DualStack() bool {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	return dialer.Dialer.DualStack
 }
 
 func (dialer *basicDialer) FallbackDelay() time.Duration {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	return dialer.Dialer.FallbackDelay
 }
 
 func (dialer *basicDialer) KeepAlive() time.Duration {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	return dialer.Dialer.KeepAlive
 }
 
 func (dialer *basicDialer) Resolver() *net.Resolver {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	return dialer.Dialer.Resolver
 }
 
 func (dialer *basicDialer) SetTimeout(newTimeout time.Duration) {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	dialer.Dialer.Timeout = newTimeout
 }
 
 func (dialer *basicDialer) SetDeadline(newDeadline time.Time) {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	dialer.Dialer.Deadline = newDeadline
 }
 
 func (dialer *basicDialer) SetLocalAddr(newLocalAddr net.Addr) {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	dialer.Dialer.LocalAddr = newLocalAddr
 }
 
 func (dialer *basicDialer) SetDualStack(newDualStack bool) {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	dialer.Dialer.DualStack = newDualStack
 }
 
 func (dialer *basicDialer) SetFallbackDelay(newFallbackDelay time.Duration) {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	dialer.Dialer.FallbackDelay = newFallbackDelay
 }
 
 func (dialer *basicDialer) SetKeepAlive(newKeepAlive time.Duration) {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	dialer.Dialer.KeepAlive = newKeepAlive
 }
 
 func (dialer *basicDialer) SetResolver(newResolver *net.Resolver) {
+	dialer.stgsMut.Lock()
+	defer dialer.stgsMut.Unlock()
 	dialer.Dialer.Resolver = newResolver
 }
