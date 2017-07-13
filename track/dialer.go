@@ -158,21 +158,31 @@ func (dialer *basicDialer) BytesWritten() uint64 {
 }
 
 func (dialer *basicDialer) BytesReadWritten() (uint64, uint64) {
+
 	dialer.flushMut.RLock()
-	defer dialer.flushMut.RUnlock()
 
-	var totalRead, totalWritten uint64
+	// Capture bytesRead and bytesWritten before a Conn on close
+	// handler gets called
+	totalRead := atomic.LoadUint64(&dialer.bytesRead)
+	totalWritten := atomic.LoadUint64(&dialer.bytesWritten)
 
+	// Shadow copy of conns such that conns is the state
+	// before any connection closes and is deleted from
+	// conns
 	dialer.connsMut.RLock()
+	shadowConns := make([]Conn, 0, len(dialer.conns))
 	for _, conn := range dialer.conns {
+		shadowConns = append(shadowConns, conn)
+	}
+	dialer.connsMut.RUnlock()
+
+	dialer.flushMut.RUnlock()
+
+	for _, conn := range shadowConns {
 		read, written := conn.BytesReadWritten()
 		totalRead += read
 		totalWritten += written
 	}
-	dialer.connsMut.RUnlock()
-
-	totalRead += atomic.LoadUint64(&dialer.bytesRead)
-	totalWritten += atomic.LoadUint64(&dialer.bytesWritten)
 
 	return totalRead, totalWritten
 }
