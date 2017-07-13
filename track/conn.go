@@ -55,9 +55,16 @@ type basicConn struct {
 	activeOpsCond *sync.Cond
 }
 
+// Only for tests to simulate delay between an operation
+// and recording it.
+var testSlow = false
+
 func (conn *basicConn) Read(b []byte) (n int, err error) {
 	conn.incActiveOp()
 	n, err = conn.Conn.Read(b)
+	if testSlow {
+		time.Sleep(time.Second)
+	}
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesRead, uint64(n))
 	}
@@ -70,6 +77,9 @@ func (conn *basicConn) Read(b []byte) (n int, err error) {
 func (conn *basicConn) Write(b []byte) (n int, err error) {
 	conn.incActiveOp()
 	n, err = conn.Conn.Write(b)
+	if testSlow {
+		time.Sleep(time.Second * 2)
+	}
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesWritten, uint64(n))
 	}
