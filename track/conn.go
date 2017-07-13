@@ -33,7 +33,10 @@ func newConn(conn net.Conn) *basicConn {
 	// waiting forever on observation
 	conn.SetReadDeadline(time.Now().Add(time.Second * 60))
 	conn.SetWriteDeadline(time.Now().Add(time.Second * 60))
-	return &basicConn{Conn: conn}
+	bc := &basicConn{Conn: conn}
+	bc.activeOpsCond = sync.NewCond(&bc.activeOpsMut)
+
+	return bc
 }
 
 // NewConn returns a new Conn based off of a net.Conn
@@ -47,41 +50,31 @@ type basicConn struct {
 	net.Conn
 	OnClose func()
 
-	activeOps sync.WaitGroup
-
-	// activeOpsMu handles the racy cases where
-	// a caller waits on activeOps and another
-	// caller in another goroutine adds to
-	// the WaitGroup. This is not an allowed behavior
-	// of WaitGroup and must be synchronized every time
-	// activeOps' state counter goes back to 0.
-	activeOpsMu sync.RWMutex
+	activeOps     uint64
+	activeOpsMut  sync.Mutex
+	activeOpsCond *sync.Cond
 }
 
 func (conn *basicConn) Read(b []byte) (n int, err error) {
-	conn.activeOpsMu.RLock()
-	conn.activeOps.Add(1)
-	conn.activeOpsMu.RUnlock()
-
+	conn.incActiveOp()
 	n, err = conn.Conn.Read(b)
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesRead, uint64(n))
 	}
-	conn.activeOps.Done()
+	conn.decActiveOp()
+
 	conn.SetReadDeadline(time.Now().Add(time.Second * 60))
 	return n, err
 }
 
 func (conn *basicConn) Write(b []byte) (n int, err error) {
-	conn.activeOpsMu.RLock()
-	conn.activeOps.Add(1)
-	conn.activeOpsMu.RUnlock()
-
+	conn.incActiveOp()
 	n, err = conn.Conn.Write(b)
 	if n > 0 {
 		atomic.AddUint64(&conn.bytesWritten, uint64(n))
 	}
-	conn.activeOps.Done()
+	conn.decActiveOp()
+
 	conn.SetWriteDeadline(time.Now().Add(time.Second * 60))
 	return n, err
 }
@@ -95,14 +88,42 @@ func (conn *basicConn) Close() error {
 }
 
 func (conn *basicConn) BytesReadWritten() (uint64, uint64) {
-	conn.activeOpsMu.Lock()
-	conn.activeOps.Wait()
-	conn.activeOpsMu.Unlock()
+	conn.waitActiveOp()
 
+	// After this point we assume it's okay to check the
+	// bytes read and written. The contract for this method specifies
+	// that BytesReadWritten only be called when the caller is sure
+	// that at the time of calling, no new operations past this call
+	// are relevant.
 	return atomic.LoadUint64(&conn.bytesRead), atomic.LoadUint64(&conn.bytesWritten)
 }
 
 func (conn *basicConn) ResetBytes() {
 	atomic.StoreUint64(&conn.bytesRead, 0)
 	atomic.StoreUint64(&conn.bytesWritten, 0)
+}
+
+func (conn *basicConn) incActiveOp() {
+	conn.activeOpsMut.Lock()
+	conn.activeOps += 1
+	conn.activeOpsMut.Unlock()
+}
+
+func (conn *basicConn) decActiveOp() {
+	conn.activeOpsMut.Lock()
+	conn.activeOps -= 1
+	if conn.activeOps == 0 {
+		conn.activeOpsCond.Broadcast()
+	}
+	conn.activeOpsMut.Unlock()
+}
+
+// waitActiveOp waits for activeOps to settle to 0 before
+// returning.
+func (conn *basicConn) waitActiveOp() {
+	conn.activeOpsMut.Lock()
+	for conn.activeOps != 0 {
+		conn.activeOpsCond.Wait()
+	}
+	conn.activeOpsMut.Unlock()
 }

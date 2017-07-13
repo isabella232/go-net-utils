@@ -17,6 +17,13 @@ package track
 // ByteTracker represents a type that is capable
 // of tracking bytes read and written over a period of time
 type ByteTracker interface {
+
+	// BytesReadWritten should only ever be called when the caller knows
+	// that no more mutations to the bytes read or written happens past the
+	// point of calling. In the context of an HTTP request and its associated
+	// socket. It's possible that a connection with the same ByteTracker may be
+	// reused. If this is the case, the caller is responsible for calling
+	// ResetBytes.
 	BytesReadWritten() (read uint64, written uint64)
 	ResetBytes()
 }
