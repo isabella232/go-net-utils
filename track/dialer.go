@@ -25,7 +25,10 @@ import (
 // Dialer represents a net.Dialer that can track bytes read/written
 type Dialer interface {
 	ByteTracker
+	netDialer
+}
 
+type netDialer interface {
 	Dial(network, address string) (net.Conn, error)
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 
@@ -53,25 +56,25 @@ type basicDialer struct {
 	bytesWritten uint64
 	connCounter  uint64
 
-	*net.Dialer
+	netDialer
 	conns    map[uint64]Conn
 	connsMut sync.RWMutex
 
 	// flushMut is for critical sections that can
 	// affect totals
 	flushMut sync.RWMutex
-
-	dialMut sync.Mutex
 }
 
 // NewDefaultDialer returns a Dialer based on
 // a default net.Dialer
 func NewDefaultDialer() Dialer {
 	return &basicDialer{
-		Dialer: &net.Dialer{
-			Timeout:   5 * time.Second,
-			KeepAlive: 5 * time.Second,
-			DualStack: true,
+		netDialer: netDialerWrapper{
+			d: &net.Dialer{
+				Timeout:   5 * time.Second,
+				KeepAlive: 5 * time.Second,
+				DualStack: true,
+			},
 		},
 	}
 }
@@ -86,13 +89,10 @@ func (dialer *basicDialer) addConn(conn Conn, num uint64) {
 }
 
 func (dialer *basicDialer) Dial(network, address string) (net.Conn, error) {
-	dialer.dialMut.Lock()
-	conn, err := dialer.Dialer.Dial(network, address)
+	conn, err := dialer.netDialer.Dial(network, address)
 	if err != nil {
-		dialer.dialMut.Unlock()
 		return nil, err
 	}
-	dialer.dialMut.Unlock()
 
 	connNum := dialer.nextConnNum()
 	tConn := newConn(conn)
@@ -103,13 +103,10 @@ func (dialer *basicDialer) Dial(network, address string) (net.Conn, error) {
 }
 
 func (dialer *basicDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	dialer.dialMut.Lock()
-	conn, err := dialer.Dialer.DialContext(ctx, network, address)
+	conn, err := dialer.netDialer.DialContext(ctx, network, address)
 	if err != nil {
-		dialer.dialMut.Unlock()
 		return nil, err
 	}
-	dialer.dialMut.Unlock()
 
 	connNum := dialer.nextConnNum()
 	tConn := newConn(conn)
@@ -201,86 +198,103 @@ func (dialer *basicDialer) ResetBytes() {
 	atomic.StoreUint64(&dialer.bytesWritten, 0)
 }
 
-func (dialer *basicDialer) Timeout() time.Duration {
-	dialer.dialMut.Lock()
-	defer dialer.dialMut.Unlock()
-	return dialer.Dialer.Timeout
+type netDialerWrapper struct {
+	d       *net.Dialer
+	dialMut sync.Mutex
 }
 
-func (dialer *basicDialer) Deadline() time.Time {
+func (dialer netDialerWrapper) Dial(network, address string) (net.Conn, error) {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	return dialer.Dialer.Deadline
+	return dialer.d.Dial(network, address)
 }
 
-func (dialer *basicDialer) LocalAddr() net.Addr {
+func (dialer netDialerWrapper) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	return dialer.Dialer.LocalAddr
+	return dialer.d.DialContext(ctx, network, address)
 }
 
-func (dialer *basicDialer) DualStack() bool {
+func (dialer netDialerWrapper) Timeout() time.Duration {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	return dialer.Dialer.DualStack
+	return dialer.d.Timeout
 }
 
-func (dialer *basicDialer) FallbackDelay() time.Duration {
+func (dialer netDialerWrapper) Deadline() time.Time {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	return dialer.Dialer.FallbackDelay
+	return dialer.d.Deadline
 }
 
-func (dialer *basicDialer) KeepAlive() time.Duration {
+func (dialer netDialerWrapper) LocalAddr() net.Addr {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	return dialer.Dialer.KeepAlive
+	return dialer.d.LocalAddr
 }
 
-func (dialer *basicDialer) Resolver() *net.Resolver {
+func (dialer netDialerWrapper) DualStack() bool {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	return dialer.Dialer.Resolver
+	return dialer.d.DualStack
 }
 
-func (dialer *basicDialer) SetTimeout(newTimeout time.Duration) {
+func (dialer netDialerWrapper) FallbackDelay() time.Duration {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	dialer.Dialer.Timeout = newTimeout
+	return dialer.d.FallbackDelay
 }
 
-func (dialer *basicDialer) SetDeadline(newDeadline time.Time) {
+func (dialer netDialerWrapper) KeepAlive() time.Duration {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	dialer.Dialer.Deadline = newDeadline
+	return dialer.d.KeepAlive
 }
 
-func (dialer *basicDialer) SetLocalAddr(newLocalAddr net.Addr) {
+func (dialer netDialerWrapper) Resolver() *net.Resolver {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	dialer.Dialer.LocalAddr = newLocalAddr
+	return dialer.d.Resolver
 }
 
-func (dialer *basicDialer) SetDualStack(newDualStack bool) {
+func (dialer netDialerWrapper) SetTimeout(newTimeout time.Duration) {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	dialer.Dialer.DualStack = newDualStack
+	dialer.d.Timeout = newTimeout
 }
 
-func (dialer *basicDialer) SetFallbackDelay(newFallbackDelay time.Duration) {
+func (dialer netDialerWrapper) SetDeadline(newDeadline time.Time) {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	dialer.Dialer.FallbackDelay = newFallbackDelay
+	dialer.d.Deadline = newDeadline
 }
 
-func (dialer *basicDialer) SetKeepAlive(newKeepAlive time.Duration) {
+func (dialer netDialerWrapper) SetLocalAddr(newLocalAddr net.Addr) {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	dialer.Dialer.KeepAlive = newKeepAlive
+	dialer.d.LocalAddr = newLocalAddr
 }
 
-func (dialer *basicDialer) SetResolver(newResolver *net.Resolver) {
+func (dialer netDialerWrapper) SetDualStack(newDualStack bool) {
 	dialer.dialMut.Lock()
 	defer dialer.dialMut.Unlock()
-	dialer.Dialer.Resolver = newResolver
+	dialer.d.DualStack = newDualStack
+}
+
+func (dialer netDialerWrapper) SetFallbackDelay(newFallbackDelay time.Duration) {
+	dialer.dialMut.Lock()
+	defer dialer.dialMut.Unlock()
+	dialer.d.FallbackDelay = newFallbackDelay
+}
+
+func (dialer netDialerWrapper) SetKeepAlive(newKeepAlive time.Duration) {
+	dialer.dialMut.Lock()
+	defer dialer.dialMut.Unlock()
+	dialer.d.KeepAlive = newKeepAlive
+}
+
+func (dialer netDialerWrapper) SetResolver(newResolver *net.Resolver) {
+	dialer.dialMut.Lock()
+	defer dialer.dialMut.Unlock()
+	dialer.d.Resolver = newResolver
 }

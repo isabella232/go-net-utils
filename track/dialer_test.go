@@ -16,7 +16,10 @@ package track
 
 import (
 	"context"
+	"net"
+	"sync"
 	"testing"
+	"time"
 
 	gc "github.com/smartystreets/goconvey/convey"
 )
@@ -134,5 +137,137 @@ func TestDialerContextReadWriteTracking(t *testing.T) {
 		bytesRead, bytesWritten := dialer.BytesReadWritten()
 		gc.So(bytesRead, gc.ShouldEqual, 0)
 		gc.So(bytesWritten, gc.ShouldEqual, 0)
+	})
+}
+
+func TestDialerGetReadWriteAndClose(t *testing.T) {
+	gc.Convey("Dialer should allow getting reads and writes while a connection is closing", t, func() {
+
+		listener, err := net.Listen("tcp", "localhost:0")
+		gc.So(err, gc.ShouldBeNil)
+		defer listener.Close()
+
+		// 1. Accept two connections.
+		go func() {
+			_, err := listener.Accept()
+			if err != nil {
+				panic(err)
+			}
+
+			_, err = listener.Accept()
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		connReadStartCh := make(chan struct{}, 2)
+
+		dialer := &basicDialer{
+			netDialer: testNetDialer{
+				d: &net.Dialer{
+					Timeout:   5 * time.Second,
+					KeepAlive: 5 * time.Second,
+					DualStack: true,
+				},
+				ConnReadStart: func() {
+					connReadStartCh <- struct{}{}
+				},
+			},
+		}
+
+		bytesReadWrittenStart := make(chan int, 2)
+
+		// 2. Get two connections.
+		conn1, err := dialer.Dial("tcp", listener.Addr().String())
+		gc.So(err, gc.ShouldBeNil)
+
+		var bytesReadWrittenStartOnce1 sync.Once
+		conn1.(*basicConn).onBytesReadWrittenStart = func() {
+			bytesReadWrittenStartOnce1.Do(func() {
+				bytesReadWrittenStart <- 1
+			})
+		}
+
+		conn2, err := dialer.Dial("tcp", listener.Addr().String())
+		gc.So(err, gc.ShouldBeNil)
+
+		var bytesReadWrittenStartOnce2 sync.Once
+		conn2.(*basicConn).onBytesReadWrittenStart = func() {
+			bytesReadWrittenStartOnce2.Do(func() {
+				bytesReadWrittenStart <- 2
+			})
+		}
+
+		readErrCh := make(chan error, 2)
+
+		// 3. Start reads.
+		go func() {
+			buff := make([]byte, 64)
+			_, err := conn1.Read(buff)
+			readErrCh <- err
+		}()
+
+		go func() {
+			buff := make([]byte, 64)
+			_, err := conn2.Read(buff)
+			readErrCh <- err
+		}()
+
+		// 4. Wait for read starting on both connections.
+		<-connReadStartCh
+		<-connReadStartCh
+
+		// 5. Get bytes read and written from the dialer.
+		resultCh := make(chan struct{})
+		go func() {
+			dialer.BytesReadWritten()
+			resultCh <- struct{}{}
+		}()
+
+		first := <-bytesReadWrittenStart
+
+		// 6. Close the opposite connection.
+		closeDoneCh := make(chan struct{})
+		go func(firstConn int) {
+			if firstConn == 1 {
+				conn2.Close()
+			} else {
+				conn1.Close()
+			}
+			closeDoneCh <- struct{}{}
+		}(first)
+
+		// A deadlock would happen here after 6 if anything.
+		// Wait a bit before failing test. This would be if
+		// closing one connection that is not the one being read
+		// causes a cycle between the closing goroutine and the
+		// bytes tracking reader goroutine while a lock for both
+		// is being held.
+		timer := time.NewTimer(time.Second * 5)
+		select {
+		case <-timer.C:
+			t.Error("Deadlock")
+			t.FailNow()
+		case <-closeDoneCh:
+			timer.Stop()
+		}
+
+		<-bytesReadWrittenStart
+
+		// 7. Close the connection opposite from the first close.
+		if first == 1 {
+			conn1.Close()
+		} else {
+			conn2.Close()
+		}
+
+		// 8. Wait for BytesReadWritten done.
+		<-resultCh
+
+		// 9. readErr should indicate read closed.
+		readErr := <-readErrCh
+		gc.So(readErr, gc.ShouldNotBeNil)
+		readErr = <-readErrCh
+		gc.So(readErr, gc.ShouldNotBeNil)
 	})
 }

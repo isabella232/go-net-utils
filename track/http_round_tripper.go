@@ -39,7 +39,7 @@ func NewHTTPRoundTripper(
 	innerDialer *net.Dialer,
 ) HTTPRoundTripper {
 	dialer := &basicDialer{
-		Dialer: innerDialer,
+		netDialer: netDialerWrapper{d: innerDialer},
 	}
 	innerTransport.DialContext = dialer.DialContext
 

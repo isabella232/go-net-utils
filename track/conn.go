@@ -48,7 +48,8 @@ type basicConn struct {
 	bytesRead    uint64
 	bytesWritten uint64
 	net.Conn
-	OnClose func()
+	OnClose                 func()
+	onBytesReadWrittenStart func()
 
 	activeOps     uint64
 	activeOpsMut  sync.Mutex
@@ -98,6 +99,9 @@ func (conn *basicConn) Close() error {
 }
 
 func (conn *basicConn) BytesReadWritten() (uint64, uint64) {
+	if conn.onBytesReadWrittenStart != nil {
+		conn.onBytesReadWrittenStart()
+	}
 	conn.waitActiveOp()
 
 	// After this point we assume it's okay to check the
