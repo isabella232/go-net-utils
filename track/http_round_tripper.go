@@ -15,6 +15,7 @@
 package track
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"time"
@@ -25,11 +26,19 @@ type HTTPRoundTripper interface {
 	http.RoundTripper
 	ByteTracker
 	CloseIdleConnections()
+	WrapDialContext(dialCtx func(next DialContext) DialContext)
 }
 
 type basicHTTPHTTPRoundTripper struct {
 	*http.Transport
 	Dialer
+	origDialCtx DialContext
+}
+
+type DialContext func(ctx context.Context, network, address string) (net.Conn, error)
+
+func (rt *basicHTTPHTTPRoundTripper) WrapDialContext(dialCtx func(next DialContext) DialContext) {
+	rt.Transport.DialContext = dialCtx(rt.origDialCtx)
 }
 
 // NewHTTPRoundTripper returns a new HTTPRoundTripper wrapping
@@ -44,8 +53,9 @@ func NewHTTPRoundTripper(
 	innerTransport.DialContext = dialer.DialContext
 
 	return &basicHTTPHTTPRoundTripper{
-		Transport: innerTransport,
-		Dialer:    dialer,
+		Transport:   innerTransport,
+		Dialer:      dialer,
+		origDialCtx: dialer.DialContext,
 	}
 }
 
