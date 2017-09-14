@@ -100,6 +100,13 @@ func TLSDialWithDialer(dialer Dialer, network, addr string, config *tls.Config) 
 		return nil, err
 	}
 
+	if !config.InsecureSkipVerify {
+		if err := conn.VerifyHostname(config.ServerName); err != nil {
+			rawConn.Close()
+			return nil, err
+		}
+	}
+
 	return conn, nil
 }
 
