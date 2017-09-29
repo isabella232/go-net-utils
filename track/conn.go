@@ -29,10 +29,6 @@ type Conn interface {
 
 // newConn returns a new Conn based off of a net.Conn
 func newConn(conn net.Conn) *basicConn {
-	// Must set a deadline otherwise we risk
-	// waiting forever on observation
-	conn.SetReadDeadline(time.Now().Add(time.Second * 60))
-	conn.SetWriteDeadline(time.Now().Add(time.Second * 60))
 	bc := &basicConn{Conn: conn}
 	bc.activeOpsCond = sync.NewCond(&bc.activeOpsMut)
 
@@ -71,7 +67,6 @@ func (conn *basicConn) Read(b []byte) (n int, err error) {
 	}
 	conn.decActiveOp()
 
-	conn.SetReadDeadline(time.Now().Add(time.Second * 60))
 	return n, err
 }
 
@@ -86,7 +81,6 @@ func (conn *basicConn) Write(b []byte) (n int, err error) {
 	}
 	conn.decActiveOp()
 
-	conn.SetWriteDeadline(time.Now().Add(time.Second * 60))
 	return n, err
 }
 

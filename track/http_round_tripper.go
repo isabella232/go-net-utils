@@ -64,13 +64,14 @@ func NewHTTPRoundTripper(
 func NewDefaultHTTPRoundTripper() HTTPRoundTripper {
 	dialer := &net.Dialer{
 		Timeout:   5 * time.Second,
+		KeepAlive: 5 * time.Second,
 		DualStack: true,
 	}
 	innerTransport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       1 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 

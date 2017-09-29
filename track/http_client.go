@@ -14,7 +14,10 @@
 
 package track
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 // HTTPClient wraps an http.Client and tracks reads and writes
 type HTTPClient struct {
@@ -25,7 +28,9 @@ type HTTPClient struct {
 // NewDefaultHTTPClient returns a new HTTPClient based on a default
 // http.Client
 func NewDefaultHTTPClient() HTTPClient {
-	client := http.Client{}
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
 	rt := NewDefaultHTTPRoundTripper()
 	client.Transport = rt
 	return HTTPClient{
