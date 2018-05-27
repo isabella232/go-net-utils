@@ -16,6 +16,7 @@ package track
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"time"
@@ -73,6 +74,9 @@ func NewDefaultHTTPRoundTripper() HTTPRoundTripper {
 		IdleConnTimeout:       1 * time.Second,
 		TLSHandshakeTimeout:   5 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS11,
+		},
 	}
 
 	return NewHTTPRoundTripper(innerTransport, dialer)
