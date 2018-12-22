@@ -25,5 +25,9 @@ type ByteTracker interface {
 	// reused. If this is the case, the caller is responsible for calling
 	// ResetBytes.
 	BytesReadWritten() (read uint64, written uint64)
+
+	// BytesReadWrittenReset can be safely called multiple times as it resets the
+	// read and written count per call.
+	BytesReadWrittenReset() (read uint64, written uint64)
 	ResetBytes()
 }

@@ -135,8 +135,8 @@ func (dialer *basicDialer) makeOnConnClose(connNum uint64) func() {
 		dialer.connsMut.Unlock()
 
 		read, written := conn.BytesReadWritten()
-		atomic.AddUint64(&dialer.bytesRead, read)
-		atomic.AddUint64(&dialer.bytesWritten, written)
+		dialer.bytesRead += read
+		dialer.bytesWritten += written
 	}
 }
 
@@ -144,24 +144,26 @@ func (dialer *basicDialer) nextConnNum() uint64 {
 	return atomic.AddUint64(&dialer.connCounter, 1)
 }
 
-func (dialer *basicDialer) BytesRead() uint64 {
-	read, _ := dialer.BytesReadWritten()
-	return read
-}
-
-func (dialer *basicDialer) BytesWritten() uint64 {
-	_, written := dialer.BytesReadWritten()
-	return written
-}
-
 func (dialer *basicDialer) BytesReadWritten() (uint64, uint64) {
+	return dialer.bytesReadWritten(false)
+}
 
-	dialer.flushMut.RLock()
+func (dialer *basicDialer) BytesReadWrittenReset() (uint64, uint64) {
+	return dialer.bytesReadWritten(true)
+}
+
+func (dialer *basicDialer) bytesReadWritten(reset bool) (uint64, uint64) {
+
+	dialer.flushMut.Lock()
 
 	// Capture bytesRead and bytesWritten before a Conn on close
 	// handler gets called
-	totalRead := atomic.LoadUint64(&dialer.bytesRead)
-	totalWritten := atomic.LoadUint64(&dialer.bytesWritten)
+	totalRead := dialer.bytesRead
+	totalWritten := dialer.bytesWritten
+
+	if reset {
+		dialer.bytesRead, dialer.bytesWritten = 0, 0
+	}
 
 	// Shadow copy of conns such that conns is the state
 	// before any connection closes and is deleted from
@@ -173,10 +175,15 @@ func (dialer *basicDialer) BytesReadWritten() (uint64, uint64) {
 	}
 	dialer.connsMut.RUnlock()
 
-	dialer.flushMut.RUnlock()
+	dialer.flushMut.Unlock()
 
 	for _, conn := range shadowConns {
-		read, written := conn.BytesReadWritten()
+		var read, written uint64
+		if reset {
+			read, written = conn.BytesReadWrittenReset()
+		} else {
+			read, written = conn.BytesReadWritten()
+		}
 		totalRead += read
 		totalWritten += written
 	}
@@ -194,8 +201,8 @@ func (dialer *basicDialer) ResetBytes() {
 	}
 	dialer.connsMut.Unlock()
 
-	atomic.StoreUint64(&dialer.bytesRead, 0)
-	atomic.StoreUint64(&dialer.bytesWritten, 0)
+	dialer.bytesRead = 0
+	dialer.bytesWritten = 0
 }
 
 type netDialerWrapper struct {

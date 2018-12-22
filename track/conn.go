@@ -17,7 +17,6 @@ package track
 import (
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -41,6 +40,7 @@ func NewConn(conn net.Conn) Conn {
 }
 
 type basicConn struct {
+	bytesMut     sync.Mutex
 	bytesRead    uint64
 	bytesWritten uint64
 	net.Conn
@@ -63,7 +63,9 @@ func (conn *basicConn) Read(b []byte) (n int, err error) {
 		time.Sleep(time.Second)
 	}
 	if n > 0 {
-		atomic.AddUint64(&conn.bytesRead, uint64(n))
+		conn.bytesMut.Lock()
+		conn.bytesRead += uint64(n)
+		conn.bytesMut.Unlock()
 	}
 	conn.decActiveOp()
 
@@ -77,7 +79,9 @@ func (conn *basicConn) Write(b []byte) (n int, err error) {
 		time.Sleep(time.Second * 2)
 	}
 	if n > 0 {
-		atomic.AddUint64(&conn.bytesWritten, uint64(n))
+		conn.bytesMut.Lock()
+		conn.bytesWritten += uint64(n)
+		conn.bytesMut.Unlock()
 	}
 	conn.decActiveOp()
 
@@ -93,22 +97,38 @@ func (conn *basicConn) Close() error {
 }
 
 func (conn *basicConn) BytesReadWritten() (uint64, uint64) {
+	return conn.bytesReadWritten(false)
+}
+
+func (conn *basicConn) BytesReadWrittenReset() (uint64, uint64) {
+	return conn.bytesReadWritten(true)
+}
+
+func (conn *basicConn) bytesReadWritten(reset bool) (uint64, uint64) {
 	if conn.onBytesReadWrittenStart != nil {
 		conn.onBytesReadWrittenStart()
 	}
 	conn.waitActiveOp()
 
-	// After this point we assume it's okay to check the
-	// bytes read and written. The contract for this method specifies
-	// that BytesReadWritten only be called when the caller is sure
-	// that at the time of calling, no new operations past this call
-	// are relevant.
-	return atomic.LoadUint64(&conn.bytesRead), atomic.LoadUint64(&conn.bytesWritten)
+	// at this point no more operations are allowed in until
+	// we unlock the mutex. Therefore the bytes read and written
+	// values are safe to read without locking conn.bytesMut.
+	read, written := conn.bytesRead, conn.bytesWritten
+	if reset {
+		conn.resetBytes()
+	}
+	conn.activeOpsMut.Unlock()
+	return read, written
 }
 
 func (conn *basicConn) ResetBytes() {
-	atomic.StoreUint64(&conn.bytesRead, 0)
-	atomic.StoreUint64(&conn.bytesWritten, 0)
+	conn.bytesMut.Lock()
+	conn.resetBytes()
+	conn.bytesMut.Unlock()
+}
+
+func (conn *basicConn) resetBytes() {
+	conn.bytesRead, conn.bytesWritten = 0, 0
 }
 
 func (conn *basicConn) incActiveOp() {
@@ -127,11 +147,10 @@ func (conn *basicConn) decActiveOp() {
 }
 
 // waitActiveOp waits for activeOps to settle to 0 before
-// returning.
+// returning. The caller must unlock conn.activeOpsMut.
 func (conn *basicConn) waitActiveOp() {
 	conn.activeOpsMut.Lock()
 	for conn.activeOps != 0 {
 		conn.activeOpsCond.Wait()
 	}
-	conn.activeOpsMut.Unlock()
 }
