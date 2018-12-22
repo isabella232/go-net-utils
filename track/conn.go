@@ -40,7 +40,6 @@ func NewConn(conn net.Conn) Conn {
 }
 
 type basicConn struct {
-	bytesMut     sync.Mutex
 	bytesRead    uint64
 	bytesWritten uint64
 	net.Conn
@@ -63,9 +62,9 @@ func (conn *basicConn) Read(b []byte) (n int, err error) {
 		time.Sleep(time.Second)
 	}
 	if n > 0 {
-		conn.bytesMut.Lock()
+		conn.activeOpsMut.Lock()
 		conn.bytesRead += uint64(n)
-		conn.bytesMut.Unlock()
+		conn.activeOpsMut.Unlock()
 	}
 	conn.decActiveOp()
 
@@ -79,9 +78,9 @@ func (conn *basicConn) Write(b []byte) (n int, err error) {
 		time.Sleep(time.Second * 2)
 	}
 	if n > 0 {
-		conn.bytesMut.Lock()
+		conn.activeOpsMut.Lock()
 		conn.bytesWritten += uint64(n)
-		conn.bytesMut.Unlock()
+		conn.activeOpsMut.Unlock()
 	}
 	conn.decActiveOp()
 
@@ -108,11 +107,15 @@ func (conn *basicConn) bytesReadWritten(reset bool) (uint64, uint64) {
 	if conn.onBytesReadWrittenStart != nil {
 		conn.onBytesReadWrittenStart()
 	}
-	conn.waitActiveOp()
+	if reset {
+		conn.activeOpsMut.Lock()
+	} else {
+		conn.waitActiveOp()
+	}
 
-	// at this point no more operations are allowed in until
-	// we unlock the mutex. Therefore the bytes read and written
-	// values are safe to read without locking conn.bytesMut.
+	// If not using reset, it's possible that there is an operation going on that
+	// is about to modify read or written but either way we will still capture
+	// all bytes by keeping this a critical section.
 	read, written := conn.bytesRead, conn.bytesWritten
 	if reset {
 		conn.resetBytes()
@@ -122,9 +125,9 @@ func (conn *basicConn) bytesReadWritten(reset bool) (uint64, uint64) {
 }
 
 func (conn *basicConn) ResetBytes() {
-	conn.bytesMut.Lock()
+	conn.activeOpsMut.Lock()
 	conn.resetBytes()
-	conn.bytesMut.Unlock()
+	conn.activeOpsMut.Unlock()
 }
 
 func (conn *basicConn) resetBytes() {
